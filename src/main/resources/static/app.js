@@ -180,32 +180,76 @@ function setPickerMarker(lat, lng) {
   pickerMarker.bindPopup("Selected report location").openPopup();
   pickerMarker.off("dragend").on("dragend",e=>{const p=e.target.getLatLng();selectedCoords={latitude:Number(p.lat.toFixed(6)),longitude:Number(p.lng.toFixed(6))};});
 }
+
 async function submitReport(event) {
   event.preventDefault();
+
   const form = event.currentTarget;
-  if(!form.reportValidity()) return;
-  const button=$("#submitReport");
-  button.disabled=true;button.textContent="Submitting…";
+  if (!form.reportValidity()) return;
+
+  const button = $("#submitReport");
+  if (button.disabled) return;
+
+  button.disabled = true;
+  button.textContent = "Submitting…";
+
   const data = Object.fromEntries(new FormData(form).entries());
-  if(selectedCoords)Object.assign(data,selectedCoords);
+  if (selectedCoords) Object.assign(data, selectedCoords);
+
   try {
-    const response=await fetch("/api/reports",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)});
-    if(!response.ok) {
-      const msg=await response.text();
-      throw new Error(msg||"Could not submit report");
+    const response = await fetch("/api/reports", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data)
+    });
+
+    const responseText = await response.text();
+
+    if (!response.ok) {
+      throw new Error(
+        responseText || `Server rejected the report (${response.status})`
+      );
     }
-    const created=await response.json();
-    form.reset();selectedCoords=null;
-    if(pickerMarker&&pickerMap){pickerMap.removeLayer(pickerMarker);pickerMarker=null;}
+
+    let created;
+
+    try {
+      created = JSON.parse(responseText);
+    } catch {
+      throw new Error("Server did not return a valid confirmation.");
+    }
+
+    if (!created || created.id == null) {
+      throw new Error("Server did not confirm the saved report.");
+    }
+
+    form.reset();
+    selectedCoords = null;
+
+    if (pickerMarker && pickerMap) {
+      pickerMap.removeLayer(pickerMarker);
+      pickerMarker = null;
+    }
+
     closeModal();
-    await loadReports();
+
     notify(`Report ${reportCode(created.id)} submitted successfully.`);
-  } catch(error) {
-    notify("Report could not be submitted. Please check your connection and try again.");
+
+    // Refresh the dashboard separately.
+    // A refresh failure does not mean the report submission failed.
+    await loadReports();
+
+  } catch (error) {
+    console.error("Report submission failed:", error);
+    notify(
+      "Report submission could not be confirmed. Check your reports before retrying."
+    );
   } finally {
-    button.disabled=false;button.innerHTML='Submit report <span>→</span>';
+    button.disabled = false;
+    button.innerHTML = 'Submit report <span>→</span>';
   }
 }
+
 async function updateStatus(id) {
   const report=reports.find(r=>r.id===Number(id));
   if(!report)return;
