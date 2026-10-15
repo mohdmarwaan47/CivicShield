@@ -1,9 +1,0 @@
-services:
-  - type: web
-    name: civicshield
-    runtime: docker
-    plan: free
-    healthCheckPath: /
-    envVars:
-      - key: JAVA_TOOL_OPTIONS
-        value: -XX:MaxRAMPercentage=75.0
