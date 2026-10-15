@@ -19,16 +19,37 @@ const reportCode = id => `CS-${String(id).padStart(4,"0")}`;
 const escapeHtml = value => String(value ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const statusClass = status => status.toLowerCase().replace(/\s+/g,"-");
 const severityClass = severity => severity.toLowerCase();
+
 function formatDate(value) {
   if (!value) return "Just now";
-  const d = new Date(value);
+
+  let dateValue = String(value);
+
+  // Treat timezone-less backend timestamps as UTC.
+  if (!/(Z|[+-]\d{2}:\d{2})$/i.test(dateValue)) {
+    dateValue += "Z";
+  }
+
+  const d = new Date(dateValue);
   if (Number.isNaN(d.getTime())) return "Recently";
-  const diff = Date.now() - d.getTime();
-  if (diff < 60*60*1000) return `${Math.max(1,Math.floor(diff/60000))} min ago`;
-  if (diff < 24*60*60*1000) return `${Math.floor(diff/3600000)} hr ago`;
-  if (diff < 48*60*60*1000) return "Yesterday";
-  return d.toLocaleDateString("en-IN",{day:"numeric",month:"short"});
+
+  const diff = Math.max(0, Date.now() - d.getTime());
+  const minutes = Math.floor(diff / 60000);
+  const hours = Math.floor(diff / 3600000);
+  const days = Math.floor(diff / 86400000);
+
+  if (minutes < 1) return "Just now";
+  if (minutes < 60) return `${minutes} minute${minutes === 1 ? "" : "s"} ago`;
+  if (hours < 24) return `${hours} hour${hours === 1 ? "" : "s"} ago`;
+  if (days === 1) return "Yesterday";
+  if (days < 7) return `${days} days ago`;
+
+  return d.toLocaleDateString("en-IN", {
+    day: "numeric",
+    month: "short"
+  });
 }
+
 function notify(message) {
   const toast = $("#toast");
   toast.textContent = message;
@@ -224,3 +245,4 @@ setToday();
 setupEvents();
 initializeMap();
 loadReports();
+setInterval(renderReports, 60000);
