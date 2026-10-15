@@ -58,11 +58,16 @@ public class HazardReport {
         this.createdAt = createdAt;
     }
 
-    @PrePersist
-    void onCreate() {
-        if (createdAt == null) createdAt = LocalDateTime.now();
-        if (status == null || status.isBlank()) status = "Submitted";
+   @PrePersist
+void onCreate() {
+    if (createdAt == null) {
+        createdAt = LocalDateTime.now(java.time.Clock.systemUTC());
     }
+
+    if (status == null || status.isBlank()) {
+        status = "Submitted";
+    }
+}
 
     public Long getId() { return id; }
     public String getTitle() { return title; }
