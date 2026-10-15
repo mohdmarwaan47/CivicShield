@@ -1,5 +1,6 @@
 package com.civicshield.report;
-
+import org.springframework.dao.DataAccessException;
+import org.springframework.http.ResponseEntity;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
@@ -29,22 +30,56 @@ public class ReportController {
         return repository.findAllByOrderByCreatedAtDesc();
     }
 
-    @PostMapping("/reports")
-    @ResponseStatus(HttpStatus.CREATED)
-    public HazardReport create(@Valid @RequestBody ReportRequest request) {
-        if (!CATEGORIES.contains(request.category)) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Choose a valid category.");
-        if (!SEVERITIES.contains(request.severity)) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Choose a valid severity.");
-        HazardReport report = new HazardReport(
-            request.title.trim(), request.category, request.severity, request.location.trim(),
-            request.description == null ? "" : request.description.trim(),
-            request.photoUrl == null ? "" : request.photoUrl.trim(),
-            request.latitude, request.longitude, "Submitted",
-            request.reporter == null || request.reporter.isBlank() ? "Community member" : request.reporter.trim(),
-            LocalDateTime.now()
-        );
-        return repository.save(report);
+  
+@PostMapping("/reports")
+public ResponseEntity<HazardReport> create(
+        @Valid @RequestBody ReportRequest request) {
+
+    if (!CATEGORIES.contains(request.category)) {
+        throw new ResponseStatusException(
+            HttpStatus.BAD_REQUEST, "Choose a valid category.");
     }
 
+    if (!SEVERITIES.contains(request.severity)) {
+        throw new ResponseStatusException(
+            HttpStatus.BAD_REQUEST, "Choose a valid severity.");
+    }
+
+    HazardReport report = new HazardReport(
+        request.title.trim(),
+        request.category,
+        request.severity,
+        request.location.trim(),
+        request.description == null ? "" : request.description.trim(),
+        request.photoUrl == null ? "" : request.photoUrl.trim(),
+        request.latitude,
+        request.longitude,
+        "Submitted",
+        request.reporter == null || request.reporter.isBlank()
+            ? "Community member" : request.reporter.trim(),
+        LocalDateTime.now()
+    );
+
+    try {
+        HazardReport saved = repository.saveAndFlush(report);
+
+        if (saved.getId() == null) {
+            throw new ResponseStatusException(
+                HttpStatus.INTERNAL_SERVER_ERROR,
+                "Report could not be confirmed as saved.");
+        }
+
+        return ResponseEntity.status(HttpStatus.CREATED).body(saved);
+
+    } catch (DataAccessException ex) {
+        throw new ResponseStatusException(
+            HttpStatus.SERVICE_UNAVAILABLE,
+            "Report could not be saved. Please try again.",
+            ex
+        );
+    }
+}
+    
     @PatchMapping("/reports/{id}/status")
     public HazardReport updateStatus(@PathVariable Long id, @RequestBody Map<String, String> body) {
         String status = body.getOrDefault("status", "");
